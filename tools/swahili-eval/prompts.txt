@@ -1,0 +1,72 @@
+[c1] (comprehension)
+Kwa Kiswahili: nini maana ya methali 'Haraka haraka haina baraka'? Eleza kwa sentensi mbili.
+
+[c2] (comprehension)
+Kwa Kiswahili: nini tofauti kati ya 'jana' na 'kesho'? Tumia kila neno katika sentensi.
+
+[c3] (comprehension)
+Kwa Kiswahili: mtu anasema 'nimechoka lakini nitaendelea'. Anamaanisha nini kuhusu hali yake?
+
+[c4] (comprehension)
+Kwa Kiswahili: kwa nini mtu anaweza kusema 'sijui' badala ya 'siwezi'? Eleza tofauti.
+
+[t1] (translation_en_sw)
+Translate into natural Swahili, not word for word: 'Please confirm whether the payment went through, and send me the receipt.'
+
+[t2] (translation_en_sw)
+Translate into Swahili: 'The meeting has been moved to Thursday at 10am because the manager is travelling.'
+
+[t3] (translation_en_sw)
+Translate into Swahili: 'I am sorry for the delay. Your order will arrive tomorrow before noon.'
+
+[t4] (translation_en_sw)
+Translate into Swahili: 'Kindly note that we do not accept returns after seven days.'
+
+[t5] (translation_sw_en)
+Translate into English: 'Nitalipa kesho asubuhi, lakini nitahitaji risiti.'
+
+[t6] (translation_sw_en)
+Translate into English: 'Mtoto alianguka jana jioni na tumempeleka hospitalini.'
+
+[t7] (translation_sw_en)
+Translate into English: 'Kama hutalipa kwa muda, tutafunga akaunti yako.'
+
+[t8] (translation_sw_en)
+Translate into English: 'Tafadhali njoo na kitambulisho chako na nakala ya bima.'
+
+[r1] (register)
+Andika barua fupi ya Kiswahili kwa mkuu wa shule, ukimwomba ruhusa ya siku mbili kwa sababu ya dharura ya familia. Tumia lugha rasmi.
+
+[r2] (register)
+Mjomba wako amekutumia ujumbe mfupi wa kukualika chakula cha jioni. Jibu kwa Kiswahili cha kawaida, cha kirafiki, kifupi.
+
+[r3] (register)
+Mteja amekasirika kwa Kiswahili na kutishia kuacha huduma. Andika jibu la kumpolea, la heshima, lenye hatua moja ya kutatua tatizo.
+
+[r4] (register)
+Eleza kwa Kiswahili rasmi jinsi ya kufungua akaunti mpya, kwa hatua tatu.
+
+[s1] (code_switching)
+Translate this Sheng into plain English: 'Niko poa, lakini nimechoka na hii hustle ya kutafuta job.'
+
+[s2] (code_switching)
+A customer texts: 'Bro, hiyo order yangu iko aje? Nimewait long sana.' Reply in the same register, briefly, and give a real status.
+
+[s3] (code_switching)
+What does 'ameamua kujitegemea' mean, and how would a Nairobi speaker more casually say the same idea?
+
+[s4] (code_switching)
+Explain the difference in tone between 'naomba' and 'nipe' in Swahili, with an example of when each is acceptable.
+
+[l1] (local_context)
+A Kenyan customer says: 'Nimelipa kupitia M-Pesa lakini hakuna message.' What are the two most likely explanations, and what should support ask them to check first?
+
+[l2] (local_context)
+Explain to a Kenyan customer in Swahili why their Fuliza balance keeps growing even when they are not spending.
+
+[l3] (local_context)
+Write a 2-sentence Swahili SMS reminding customers that rent is due, suitable for a Nairobi landlord, without being threatening.
+
+[l4] (local_context)
+A customer in Kisumu asks whether the shop delivers there. Answer in Swahili, mention delivery cost and time, and say what you need from them to confirm.
+
