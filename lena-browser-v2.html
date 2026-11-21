@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lena</title>
+<style>
+  :root { --ink:#dfe6f5; --dim:#8b96ad; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    min-height:100vh; background:radial-gradient(circle at 50% 22%, #131b33 0%, #0a0e1a 60%, #060810 100%);
+    color:var(--ink); font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;
+    padding:26px 18px; text-align:center;
+  }
+  h1 { font-size:14px; letter-spacing:.24em; text-transform:uppercase; color:var(--dim); font-weight:500; }
+  #orb {
+    width:150px; height:150px; border-radius:50%; cursor:pointer; border:0;
+    background:radial-gradient(circle at 38% 32%, #8fb8ff 0%, #4f7cf0 45%, #233c8f 100%);
+    box-shadow:0 0 40px 6px rgba(79,124,240,.30), inset 0 0 30px rgba(255,255,255,.22);
+    transition:transform .18s, box-shadow .18s, background .3s;
+  }
+  #orb:active { transform:scale(.96); }
+  body.listening #orb { background:radial-gradient(circle at 38% 32%, #b8ffd9 0%, #34d17d 45%, #11633c 100%);
+    box-shadow:0 0 60px 12px rgba(52,209,125,.42), inset 0 0 30px rgba(255,255,255,.22); }
+  body.thinking #orb { background:radial-gradient(circle at 38% 32%, #ffe3a8 0%, #e8a63a 45%, #8a5410 100%);
+    box-shadow:0 0 55px 10px rgba(232,166,58,.38), inset 0 0 30px rgba(255,255,255,.22); }
+  body.speaking #orb { background:radial-gradient(circle at 38% 32%, #e8c4ff 0%, #9d5cf0 45%, #4c238f 100%);
+    box-shadow:0 0 60px 12px rgba(157,92,240,.42), inset 0 0 30px rgba(255,255,255,.22); }
+  body.armed #orb { animation:breathe 2.6s ease-in-out infinite; }
+  @keyframes breathe { 0%,100% { transform:scale(1); } 50% { transform:scale(1.06); } }
+  #status { min-height:20px; font-size:14px; color:var(--dim); max-width:520px; line-height:1.5; }
+  #log { width:100%; max-width:540px; max-height:32vh; overflow-y:auto; text-align:left;
+    display:flex; flex-direction:column; gap:9px; padding-right:4px; }
+  .row { font-size:14.5px; line-height:1.5; padding:9px 12px; border-radius:12px; max-width:92%; white-space:pre-wrap; }
+  .you { background:#182036; align-self:flex-end; }
+  .her { background:#101728; border:1px solid #1d2740; align-self:flex-start; }
+  .err { background:#2a1518; border:1px solid #4a2024; color:#ffb3b5; align-self:stretch; font-size:13px; }
+  .bar { width:100%; max-width:540px; display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  button.act { padding:10px 15px; border-radius:10px; border:1px solid #253050; background:#111a2e;
+    color:var(--ink); font-size:13.5px; cursor:pointer; }
+  button.act:hover { background:#182338; }
+  button.act.on { background:#1f3a2c; border-color:#2f7a52; }
+  select { padding:9px 11px; border-radius:10px; border:1px solid #253050; background:#0e1424;
+    color:var(--ink); font-size:13px; max-width:200px; }
+  #setup { width:100%; max-width:540px; display:flex; flex-direction:column; gap:10px; }
+  input { width:100%; padding:11px 13px; border-radius:10px; border:1px solid #253050;
+    background:#0e1424; color:var(--ink); font-size:14px; }
+  input:focus { outline:2px solid #3a5bd0; outline-offset:1px; }
+  .hint { font-size:12.5px; color:#6f7a91; line-height:1.55; text-align:left; max-width:540px; }
+  .hint b { color:#9fb0cc; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+  <h1>Lena</h1>
+  <button id="orb" aria-label="Talk to Lena"></button>
+  <div id="status">Starting up…</div>
+
+  <div id="setup" class="hidden">
+    <input id="key" type="password" placeholder="Paste your Base44 personal API key" autocomplete="off">
+    <button class="act" id="saveKey">Connect</button>
+    <p class="hint">Agent editor → <b>Settings → Developer / API Docs</b> → copy the API key. Stored in this browser only.</p>
+  </div>
+
+  <div class="bar">
+    <button class="act" id="wakeBtn">Wake word: off</button>
+    <select id="voiceSel"><option>Loading voices…</option></select>
+  </div>
+
+  <div id="log"></div>
+
+  <p class="hint" style="text-align:center">
+    Say <b>“Hey Lena”</b> once wake word is on, or hold the orb / hold <b>Space</b>.
+    Press <b>Space</b> while she speaks to cut her off. Chrome or Edge only — speech recognition needs Chromium.
+  </p>
+
+<script>
+(function () {
+  "use strict";
+
+  var AGENT_ID = "6a0ebc236c3234fc81a8acf3";
+  var BASE = "https://app.base44.com";
+  var KEY_STORE = "lena_api_key";
+  var CONV_STORE = "lena_conversation";
+  var VOICE_STORE = "lena_voice";
+  var WAKE_STORE = "lena_wake";
+
+  var statusEl = document.getElementById("status");
+  var logEl = document.getElementById("log");
+  var setupEl = document.getElementById("setup");
+  var orb = document.getElementById("orb");
+  var keyInput = document.getElementById("key");
+  var wakeBtn = document.getElementById("wakeBtn");
+  var voiceSel = document.getElementById("voiceSel");
+
+  var apiKey = localStorage.getItem(KEY_STORE) || "";
+  var conversationId = localStorage.getItem(CONV_STORE) || "";
+  var chosenVoice = localStorage.getItem(VOICE_STORE) || "";
+  var wakeOn = localStorage.getItem(WAKE_STORE) === "1";
+
+  var thinking = false;
+  var speaking = false;
+  var recog = null;
+  var listening = false;
+  var capturing = false;
+  var capturingText = "";
+  var silenceTimer = null;
+  var restartTimer = null;
+  var timers = [];
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  function setStatus(t) { statusEl.textContent = t; }
+  function setState(n) {
+    document.body.classList.remove("listening", "thinking", "speaking");
+    if (n) document.body.classList.add(n);
+  }
+  function addRow(text, cls) {
+    var d = document.createElement("div");
+    d.className = "row " + cls;
+    d.textContent = text;
+    logEl.appendChild(d);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+  function fail(m) { addRow(m, "err"); }
+
+  // ---------- chime ---------------------------------------------------------
+  function chime(freq, dur) {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      if (!window._ac) window._ac = new Ctx();
+      var ac = window._ac;
+      var o = ac.createOscillator();
+      var g = ac.createGain();
+      o.type = "sine";
+      o.frequency.value = freq || 880;
+      g.gain.setValueAtTime(0.0001, ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.08, ac.currentTime + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + (dur || 0.16));
+      o.connect(g); g.connect(ac.destination);
+      o.start(); o.stop(ac.currentTime + (dur || 0.16));
+    } catch (e) {}
+  }
+
+  // ---------- API -----------------------------------------------------------
+  function api(path, body) {
+    return fetch(BASE + path, {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify(body || {})
+    }).then(function (res) {
+      return res.text().then(function (raw) {
+        var data = {};
+        try { data = raw ? JSON.parse(raw) : {}; } catch (e) { data = { _raw: raw }; }
+        if (!res.ok) {
+          var d = data.message || data.error || data._raw || ("HTTP " + res.status);
+          throw new Error(res.status + ": " + String(d).slice(0, 300));
+        }
+        return data;
+      });
+    });
+  }
+
+  function ensureConversation() {
+    if (conversationId) return Promise.resolve(conversationId);
+    setStatus("Opening a conversation…");
+    return api("/api/agents/" + AGENT_ID + "/conversations", {}).then(function (data) {
+      var id = data.id || data.conversation_id || (data.conversation && data.conversation.id);
+      if (!id) throw new Error("No conversation id returned");
+      conversationId = id;
+      localStorage.setItem(CONV_STORE, id);
+      return id;
+    });
+  }
+
+  // ---------- local commands (no API, instant) ------------------------------
+  function localCommand(text) {
+    var t = text.toLowerCase();
+
+    if (/\bwhat('| i)?s? the time\b|\bwhat time is it\b|\btime now\b/.test(t)) {
+      var now = new Date();
+      var hh = now.getHours(), mm = now.getMinutes();
+      var ap = hh >= 12 ? "pm" : "am";
+      var h12 = hh % 12; if (h12 === 0) h12 = 12;
+      return "It is " + h12 + ":" + (mm < 10 ? "0" + mm : mm) + " " + ap + ".";
+    }
+
+    var m = t.match(/\btimer\b.*?\b(\d+)\b(?:.*?\b(minute|minutes|min|second|seconds|sec|hour|hours)\b)?/);
+    if (m) {
+      var n = parseInt(m[1], 10);
+      var unit = m[2] || "minute";
+      var ms = unit.indexOf("sec") === 0 ? n * 1000
+             : unit.indexOf("hour") === 0 ? n * 3600000
+             : n * 60000;
+      if (isFinite(ms) && ms > 0 && ms < 86400000) {
+        setTimeout(function () {
+          chime(1040, 0.28);
+          setTimeout(function () { chime(780, 0.28); }, 320);
+          speak("Time is up, Robert.");
+        }, ms);
+        var human = unit.indexOf("sec") === 0 ? n + " seconds"
+                  : unit.indexOf("hour") === 0 ? n + " hours"
+                  : n + " minutes";
+        return "Timer set for " + human + ".";
+      }
+    }
+
+    if (/^(stop|quiet|hush|shut up|enough)\b/.test(t)) {
+      stopSpeaking();
+      return "";
+    }
+    return null;
+  }
+
+  // ---------- ask -----------------------------------------------------------
+  function ask(text) {
+    if (!text || thinking) return;
+
+    var local = localCommand(text);
+    if (local !== null) {
+      addRow(text, "you");
+      if (local) { addRow(local, "her"); speak(local); }
+      else setStatus("Ready.");
+      armWake();
+      return;
+    }
+
+    thinking = true;
+    addRow(text, "you");
+    setState("thinking");
+    var t0 = Date.now();
+    var tick = setInterval(function () {
+      setStatus("Thinking… " + Math.round((Date.now() - t0) / 1000) + "s");
+    }, 1000);
+
+    ensureConversation()
+      .then(function (id) {
+        return api("/api/agents/" + AGENT_ID + "/conversations/" + id + "/messages", { content: text });
+      })
+      .then(function (data) {
+        clearInterval(tick);
+        thinking = false;
+        var reply = data.content || data.reply || (data.message && data.message.content) || "";
+        if (!reply) { setState(null); fail("The API answered but the reply was empty."); armWake(); return; }
+        addRow(reply, "her");
+        speak(reply);
+      })
+      .catch(function (err) {
+        clearInterval(tick);
+        thinking = false;
+        setState(null);
+        fail(err.message);
+        armWake();
+      });
+  }
+
+  // ---------- speak ---------------------------------------------------------
+  function pickVoice() {
+    if (!("speechSynthesis" in window)) return null;
+    var voices = window.speechSynthesis.getVoices() || [];
+    if (!voices.length) return null;
+    if (chosenVoice) {
+      for (var i = 0; i < voices.length; i++) if (voices[i].name === chosenVoice) return voices[i];
+    }
+    var prefer = ["Google UK English Female", "Microsoft Aria", "Samantha", "Google US English", "Microsoft Zira"];
+    for (var p = 0; p < prefer.length; p++) {
+      for (var j = 0; j < voices.length; j++) {
+        if (voices[j].name.indexOf(prefer[p]) === 0) return voices[j];
+      }
+    }
+    return voices[0];
+  }
+
+  function speak(text) {
+    if (!("speechSynthesis" in window) || !text) { armWake(); return; }
+    window.speechSynthesis.cancel();
+    var parts = text.match(/[^.!?]+[.!?]*/g) || [text];
+    var queue = [];
+    parts.forEach(function (p) { var t = p.trim(); if (t) queue.push(t); });
+    if (!queue.length) { armWake(); return; }
+
+    speaking = true;
+    setState("speaking");
+    setStatus("Speaking — say “Hey Lena” or press Space to interrupt.");
+    var voice = pickVoice();
+
+    function next() {
+      if (!queue.length) {
+        speaking = false;
+        setState(null);
+        setStatus("Ready.");
+        armWake();
+        return;
+      }
+      var u = new SpeechSynthesisUtterance(queue.shift());
+      if (voice) { u.voice = voice; u.lang = voice.lang; }
+      u.rate = 1.02; u.pitch = 1.0;
+      u.onend = next; u.onerror = next;
+      window.speechSynthesis.speak(u);
+    }
+    next();
+  }
+
+  function stopSpeaking() {
+    if (!speaking) return false;
+    window.speechSynthesis.cancel();
+    speaking = false;
+    setState(null);
+    setStatus("Stopped.");
+    return true;
+  }
+
+  // ---------- listen --------------------------------------------------------
+  function buildRecognizer(continuous) {
+    var r = new SR();
+    r.lang = "en-KE";
+    r.continuous = !!continuous;
+    r.interimResults = true;
+    return r;
+  }
+
+  /* wake mode: always-on recognition, listens for "hey lena", then captures
+     the command that follows and sends it. */
+  function armWake() {
+    if (!wakeOn || !SR) return;
+    if (recog || thinking) return;
+    try {
+      recog = buildRecognizer(true);
+      recog.onstart = function () {
+        document.body.classList.add("armed");
+        if (!speaking) setStatus("Listening for “Hey Lena”…");
+      };
+      recog.onerror = function (e) {
+        if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+          setStatus("Microphone blocked — allow mic access, then toggle wake word again.");
+          wakeOn = false; wakeBtn.classList.remove("on"); wakeBtn.textContent = "Wake word: off";
+          localStorage.setItem(WAKE_STORE, "0");
+        }
+      };
+      recog.onresult = onWakeResult;
+      recog.onend = function () {
+        recog = null;
+        document.body.classList.remove("armed");
+        if (wakeOn && !thinking) {
+          clearTimeout(restartTimer);
+          restartTimer = setTimeout(armWake, 400);
+        }
+      };
+      recog.start();
+    } catch (e) {
+      recog = null;
+    }
+  }
+
+  function onWakeResult(event) {
+    var interim = "", final = "";
+    for (var i = event.resultIndex; i < event.results.length; i++) {
+      var r = event.results[i];
+      if (r.isFinal) final += r[0].transcript;
+      else interim += r[0].transcript;
+    }
+    var heard = (final || interim).trim();
+    if (!heard) return;
+
+    var wakeRe = /\b(hey|hi|ok|okay|yo)?\s*lena\b[,.]?\s*/i;
+    var hit = heard.match(wakeRe);
+
+    if (hit && !capturing) {
+      if (speaking) { stopSpeaking(); }
+      chime(880, 0.14);
+      capturing = true;
+      capturingText = heard.slice(hit.index + hit[0].length).trim();
+      setState("listening");
+      setStatus("Yes?");
+      clearTimeout(silenceTimer);
+      silenceTimer = setTimeout(finishCapture, 1300);
+      return;
+    }
+
+    if (capturing) {
+      capturingText = (capturingText + " " + final).trim();
+      if (final) setStatus(capturingText);
+      clearTimeout(silenceTimer);
+      silenceTimer = setTimeout(finishCapture, 1300);
+    }
+  }
+
+  function finishCapture() {
+    if (!capturing) return;
+    capturing = false;
+    var text = (capturingText || "").trim();
+    capturingText = "";
+    setState(null);
+    if (recog) { try { recog.stop(); } catch (e) {} recog = null; }
+    if (text) ask(text);
+    else setStatus("I didn't catch that.");
+  }
+
+  /* push-to-talk: hold orb or Space */
+  function startPush() {
+    if (!SR || listening || thinking) return;
+    if (stopSpeaking()) return;
+    var r = buildRecognizer(false);
+    var text = "";
+    listening = true;
+    r.onstart = function () { setState("listening"); setStatus("Listening…"); };
+    r.onresult = function (e) {
+      var interim = "", fin = "";
+      for (var i = e.resultIndex; i < e.results.length; i++) {
+        var res = e.results[i];
+        if (res.isFinal) fin += res[0].transcript;
+        else interim += res[0].transcript;
+      }
+      if (fin) text += fin;
+      setStatus(interim || text || "Listening…");
+    };
+    r.onerror = function (e) {
+      listening = false;
+      setState(null);
+      if (e.error === "not-allowed") setStatus("Microphone blocked — allow mic access for this page.");
+      else if (e.error !== "no-speech") setStatus("Microphone problem: " + e.error);
+    };
+    r.onend = function () {
+      listening = false;
+      setState(null);
+      if (wakeOn) armWake();
+      var t = text.trim();
+      if (t) ask(t); else setStatus("Ready.");
+      recog = null;
+    };
+    try { r.start(); recog = r; }
+    catch (e) { listening = false; setStatus("Could not start the microphone."); }
+  }
+
+  function stopPush() { if (recog && listening) { try { recog.stop(); } catch (e) {} } }
+
+  // ---------- wiring --------------------------------------------------------
+  orb.addEventListener("pointerdown", function (e) { e.preventDefault(); startPush(); });
+  orb.addEventListener("pointerup", function (e) { e.preventDefault(); stopPush(); });
+  orb.addEventListener("pointerleave", function () { stopPush(); });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.code !== "Space" || e.repeat) return;
+    if (document.activeElement === keyInput) return;
+    e.preventDefault();
+    if (stopSpeaking()) return;
+    startPush();
+  });
+  document.addEventListener("keyup", function (e) {
+    if (e.code !== "Space") return;
+    e.preventDefault();
+    stopPush();
+  });
+
+  wakeBtn.addEventListener("click", function () {
+    wakeOn = !wakeOn;
+    localStorage.setItem(WAKE_STORE, wakeOn ? "1" : "0");
+    wakeBtn.classList.toggle("on", wakeOn);
+    wakeBtn.textContent = "Wake word: " + (wakeOn ? "on" : "off");
+    if (wakeOn) {
+      chime(760, 0.12);
+      armWake();
+    } else {
+      clearTimeout(restartTimer);
+      if (recog && !listening) { try { recog.stop(); } catch (e) {} recog = null; }
+      document.body.classList.remove("armed");
+      setStatus("Wake word off. Hold the orb to talk.");
+    }
+  });
+
+  function fillVoices() {
+    if (!("speechSynthesis" in window)) { voiceSel.classList.add("hidden"); return; }
+    var voices = window.speechSynthesis.getVoices() || [];
+    if (!voices.length) return;
+    voiceSel.innerHTML = "";
+    voices.forEach(function (v) {
+      var opt = document.createElement("option");
+      opt.value = v.name;
+      opt.textContent = v.name + " (" + v.lang + ")";
+      if (v.name === chosenVoice) opt.selected = true;
+      voiceSel.appendChild(opt);
+    });
+    if (!chosenVoice) {
+      var best = pickVoice();
+      if (best) { voiceSel.value = best.name; chosenVoice = best.name; localStorage.setItem(VOICE_STORE, best.name); }
+    }
+  }
+  if ("speechSynthesis" in window) {
+    fillVoices();
+    window.speechSynthesis.onvoiceschanged = fillVoices;
+  }
+  voiceSel.addEventListener("change", function () {
+    chosenVoice = voiceSel.value;
+    localStorage.setItem(VOICE_STORE, chosenVoice);
+    speak("This is how I sound now.");
+  });
+
+  function useKey(key) {
+    apiKey = (key || "").trim();
+    if (!apiKey) { setStatus("Paste a key first."); return; }
+    localStorage.setItem(KEY_STORE, apiKey);
+    conversationId = "";
+    localStorage.removeItem(CONV_STORE);
+    setupEl.classList.add("hidden");
+    setStatus("Connecting…");
+    ensureConversation()
+      .then(function () {
+        setStatus("Ready. Say “Hey Lena” or hold the orb.");
+        addRow("Connected. Say “Hey Lena” for hands-free, or hold the orb.", "her");
+        if (wakeOn) armWake();
+      })
+      .catch(function (err) {
+        setupEl.classList.remove("hidden");
+        fail(err.message);
+      });
+  }
+
+  document.getElementById("saveKey").addEventListener("click", function () { useKey(keyInput.value); });
+  keyInput.addEventListener("keydown", function (e) { if (e.key === "Enter") useKey(keyInput.value); });
+
+  // ---------- boot ----------------------------------------------------------
+  if (!SR) setStatus("This browser has no speech recognition. Open in Chrome or Edge.");
+  wakeBtn.classList.toggle("on", wakeOn);
+  wakeBtn.textContent = "Wake word: " + (wakeOn ? "on" : "off");
+
+  if (apiKey) {
+    setStatus("Connecting…");
+    ensureConversation()
+      .then(function () {
+        setStatus("Ready. Say “Hey Lena” or hold the orb.");
+        if (wakeOn) armWake();
+      })
+      .catch(function () {
+        setupEl.classList.remove("hidden");
+        setStatus("Paste your API key to reconnect.");
+      });
+  } else {
+    setupEl.classList.remove("hidden");
+    setStatus("Paste your Base44 API key to begin.");
+  }
+})();
+</script>
+</body>
+</html>
